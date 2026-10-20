@@ -1,0 +1,813 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Faskes AI Photo Lab</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+/* Layout: meja kerja dua kolom. Kiri = langkah 1-3 (referensi, situasi, prompt). Kanan (menempel) = kanvas, hasil, editor 4. */
+:root{
+  --bg:#eef2f1; --panel:#ffffff; --ink:#14201f; --muted:#556866; --line:#d3dedc; --soft:#f4f8f7;
+  --accent:#0e7c7b; --accent-ink:#ffffff; --accent-soft:#dcefee;
+  --warn-bg:#fff4dc; --warn-ink:#6b4a00; --danger:#b3261e; --canvas:#dfe7e5;
+  --f-display:'Bricolage Grotesque',system-ui,sans-serif;
+  --f-body:'IBM Plex Sans',system-ui,sans-serif;
+  --f-mono:'IBM Plex Mono',ui-monospace,monospace;
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --bg:#0e1514; --panel:#152120; --ink:#e6efed; --muted:#93a8a5; --line:#264240; --soft:#101b1a;
+    --accent:#3cc2bd; --accent-ink:#06201f; --accent-soft:#16312f;
+    --warn-bg:#2d2410; --warn-ink:#f0cf86; --danger:#ff8a80; --canvas:#0a100f; color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0e1514; --panel:#152120; --ink:#e6efed; --muted:#93a8a5; --line:#264240; --soft:#101b1a;
+  --accent:#3cc2bd; --accent-ink:#06201f; --accent-soft:#16312f;
+  --warn-bg:#2d2410; --warn-ink:#f0cf86; --danger:#ff8a80; --canvas:#0a100f; color-scheme:dark;
+}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.55 var(--f-body);
+  padding-block:20px 48px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+h1,h2,h3{font-family:var(--f-display);margin:0;text-wrap:balance;line-height:1.15}
+a{color:var(--accent)}
+button,input,select,textarea{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.top{max-width:1280px;margin:0 auto 18px;display:flex;gap:12px;align-items:flex-end;justify-content:space-between;flex-wrap:wrap}
+.top h1{font-size:clamp(1.5rem,3.4vw,2.1rem);letter-spacing:-.01em}
+.top p{margin:4px 0 0;color:var(--muted);max-width:60ch}
+.mono{font-family:var(--f-mono);font-size:.78rem;letter-spacing:.04em;text-transform:uppercase;color:var(--muted)}
+.wrap{max-width:1280px;margin:0 auto;display:grid;grid-template-columns:minmax(0,1fr);gap:18px}
+@media(min-width:980px){.wrap{grid-template-columns:minmax(0,5fr) minmax(0,6fr)}.sticky{position:sticky;top:16px;align-self:start}}
+.col{display:flex;flex-direction:column;gap:14px;min-width:0}
+.step{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:16px;min-width:0}
+.step>header{display:flex;align-items:center;gap:10px;margin-bottom:12px}
+.stepno{flex:none;width:26px;height:26px;border-radius:50%;background:var(--accent);color:var(--accent-ink);display:grid;place-items:center;font:600 .8rem var(--f-mono)}
+.step h2{font-size:1.08rem}
+.grid2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+@media(max-width:460px){.grid2{grid-template-columns:minmax(0,1fr)}}
+label.f{display:flex;flex-direction:column;gap:4px;font-size:.84rem;color:var(--muted);min-width:0}
+label.f>span{font-weight:500}
+input[type=text],select,textarea{width:100%;background:var(--soft);border:1px solid var(--line);border-radius:6px;padding:8px 10px;color:var(--ink);min-width:0}
+textarea{resize:vertical;min-height:210px;line-height:1.45;font-family:var(--f-mono);font-size:.84rem}
+input[type=range]{width:100%;accent-color:var(--accent)}
+.chk{display:flex;gap:8px;align-items:flex-start;font-size:.88rem;color:var(--ink)}
+.chk input{margin-top:3px;accent-color:var(--accent)}
+.hint{font-size:.8rem;color:var(--muted);margin:6px 0 0}
+.btn{border:1px solid var(--line);background:var(--panel);border-radius:6px;padding:8px 12px;cursor:pointer;font-weight:500}
+.btn:hover{border-color:var(--accent)}
+.btn.primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent);font-weight:600}
+.btn.primary:disabled{opacity:.55;cursor:progress}
+.btn.sm{padding:5px 9px;font-size:.82rem}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.drop{border:1.5px dashed var(--line);border-radius:8px;padding:16px;text-align:center;background:var(--soft);cursor:pointer;color:var(--muted)}
+.drop.over{border-color:var(--accent);background:var(--accent-soft)}
+.refs{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-top:10px}
+.refcard{display:flex;flex-direction:column;gap:4px;min-width:0}
+.refcard select{padding:4px 6px;font-size:.78rem}
+.ref{position:relative;border-radius:6px;overflow:hidden;border:1px solid var(--line);aspect-ratio:1;background:var(--soft)}
+.ref img{width:100%;height:100%;object-fit:cover;display:block}
+.ref b{position:absolute;left:4px;top:4px;background:rgba(0,0,0,.65);color:#fff;font:500 .7rem var(--f-mono);padding:1px 5px;border-radius:3px}
+.ref button{position:absolute;right:4px;top:4px;border:0;background:rgba(0,0,0,.65);color:#fff;border-radius:3px;cursor:pointer;width:22px;height:22px;line-height:1}
+.ref .use{left:4px;right:auto;top:auto;bottom:4px;width:auto;padding:0 6px;font-size:.7rem;height:20px}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{border:1px solid var(--line);background:var(--soft);border-radius:999px;padding:5px 11px;cursor:pointer;font-size:.86rem}
+.chip[aria-pressed=true]{background:var(--accent);color:var(--accent-ink);border-color:var(--accent);font-weight:600}
+.group{margin:0 0 10px}
+.group .mono{margin-bottom:6px;display:block}
+.notice{background:var(--warn-bg);color:var(--warn-ink);border-radius:8px;padding:10px 12px;font-size:.84rem}
+.status{min-height:1.3em;font-size:.88rem;color:var(--muted);margin:8px 0 0}
+.status.err{color:var(--danger)}
+.status.ok{color:var(--accent)}
+.pipe{display:flex;gap:6px;flex-wrap:wrap;align-items:center;font:500 .76rem var(--f-mono);color:var(--muted);margin:0 0 10px}
+.pipe i{font-style:normal;color:var(--accent)}
+.pipe span{background:var(--soft);border:1px solid var(--line);border-radius:4px;padding:2px 7px}
+.stage{background:var(--canvas);border:1px solid var(--line);border-radius:10px;padding:10px;display:flex;justify-content:center;align-items:center;min-height:240px}
+.stage canvas{max-width:100%;max-height:68vh;height:auto;border-radius:4px;display:block}
+.empty{color:var(--muted);text-align:center;max-width:38ch;font-size:.9rem}
+.thumbs{display:flex;gap:8px;overflow-x:auto;padding-bottom:4px}
+.thumbs button{flex:none;width:96px;height:64px;border:2px solid transparent;border-radius:6px;padding:0;overflow:hidden;cursor:pointer;background:var(--soft)}
+.thumbs button[aria-current=true]{border-color:var(--accent)}
+.thumbs img{width:100%;height:100%;object-fit:cover;display:block}
+.tabs{display:flex;gap:4px;flex-wrap:wrap;margin-bottom:10px}
+.tab{border:0;background:transparent;padding:6px 10px;border-radius:6px;cursor:pointer;font-weight:500;color:var(--muted)}
+.tab[aria-selected=true]{background:var(--accent-soft);color:var(--accent)}
+.sliders{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px 14px}
+@media(max-width:460px){.sliders{grid-template-columns:minmax(0,1fr)}}
+.val{font-family:var(--f-mono);font-size:.78rem;color:var(--ink);font-style:normal}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+@media(prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+</style>
+<script src="https://js.puter.com/v2/"></script>
+</head>
+<body>
+<header class="top">
+  <div>
+    <span class="mono">Alat internal fasilitas kesehatan</span>
+    <h1>Faskes AI Photo Lab</h1>
+    <p>Ubah foto referensi menjadi foto kegiatan landscape yang realistis, lalu rapikan di editor. Mesin AI sudah tertanam dan berpindah otomatis.</p>
+  </div>
+  <button class="btn sm" id="themeBtn" type="button">Tema</button>
+</header>
+
+<main class="wrap">
+  <div class="col">
+    <section class="step" aria-labelledby="h2">
+      <header><span class="stepno">1</span><h2 id="h2">Foto referensi</h2></header>
+      <div class="drop" id="drop" tabindex="0" role="button" aria-label="Unggah foto referensi">
+        Tarik foto ke sini atau klik untuk memilih<br><small>Maksimal 3 foto. Tentukan peran tiap foto: wajah, gaya, atau lokasi.</small>
+      </div>
+      <input class="sr" type="file" id="file" accept="image/*" multiple>
+      <div class="refs" id="refs"></div>
+      <p class="hint">Peran "Wajah" setara --cref di Midjourney, peran "Gaya" setara --sref.</p>
+    </section>
+
+    <section class="step" aria-labelledby="h3">
+      <header><span class="stepno">2</span><h2 id="h3">Situasi kegiatan</h2></header>
+      <div class="group"><span class="mono">Layanan</span><div class="chips" id="chipsA"></div></div>
+      <div class="group"><span class="mono">Kantor dan lapangan</span><div class="chips" id="chipsB"></div></div>
+      <div class="group"><span class="mono">Contoh bebas</span><div class="chips" id="chipsC"></div></div>
+      <label class="f"><span>Detail tambahan (opsional)</span>
+        <input type="text" id="detail" placeholder="mis. spanduk Posyandu Melati di belakang, ibu-ibu duduk melingkar">
+      </label>
+      <div class="grid2" style="margin-top:10px">
+        <label class="f"><span>Gaya foto</span>
+          <select id="style">
+            <option value="natural">Dokumentasi natural</option>
+            <option value="jurnalistik">Jurnalistik candid</option>
+            <option value="promosi">Bersih untuk materi promosi</option>
+            <option value="sinematik">Sinematik</option>
+          </select></label>
+        <label class="f"><span>Waktu dan cahaya</span>
+          <select id="light">
+            <option value="morning">Pagi, cahaya lembut</option>
+            <option value="noon">Siang, terang</option>
+            <option value="afternoon">Sore, keemasan</option>
+            <option value="indoor">Dalam ruangan, lampu terang</option>
+            <option value="night">Malam, lampu kota</option>
+          </select></label>
+        <label class="f"><span>Sudut kamera</span>
+          <select id="angle">
+            <option value="eye">Setinggi mata</option>
+            <option value="wide">Lebar, satu kelompok</option>
+            <option value="high">Sedikit dari atas</option>
+            <option value="close">Dekat, fokus aktivitas</option>
+          </select></label>
+        <label class="f"><span>Jumlah orang</span>
+          <select id="people">
+            <option value="same">Sesuai referensi</option>
+            <option value="1">1 orang</option>
+            <option value="3">2 sampai 3 orang</option>
+            <option value="8">Kelompok 5 sampai 8 orang</option>
+          </select></label>
+      </div>
+      <label class="chk" style="margin-top:10px"><input type="checkbox" id="keep" checked><span>Pertahankan identitas wajah dari referensi</span></label>
+      <p class="hint">Hasil selalu berformat landscape 3:2. Memilih situasi mengisi gaya, cahaya, sudut, dan jumlah orang yang cocok, lalu prompt di langkah 3 ikut berubah.</p>
+    </section>
+
+    <section class="step" aria-labelledby="h4">
+      <header><span class="stepno">3</span><h2 id="h4">Prompt dan buat</h2></header>
+      <textarea id="prompt" aria-label="Prompt teks polos untuk AI"></textarea>
+      <div class="row" style="margin-top:8px">
+        <button class="btn sm" id="rebuild" type="button">Susun ulang dari situasi</button>
+        <button class="btn sm" id="copyPlain" type="button">Salin teks</button>
+        <button class="btn sm" id="copyMj" type="button">Salin format Midjourney</button>
+      </div>
+      <p class="hint">Prompt adalah teks polos dan boleh Anda ubah bebas. Tombol salin berguna bila Anda ingin menjalankannya juga di Midjourney atau Flux.</p>
+      <div class="grid2" style="margin-top:10px">
+        <label class="f"><span>Jumlah variasi</span>
+          <select id="variants"><option selected>1</option><option>2</option><option>3</option></select></label>
+      </div>
+      <div class="row" style="margin-top:12px">
+        <button class="btn primary" id="go" type="button">Buat foto kegiatan</button>
+      </div>
+      <p class="status" id="status" role="status" aria-live="polite"></p>
+      <p class="hint">Mesin berpindah otomatis ke cadangan bila satu gagal. Saat pertama dipakai akan muncul jendela masuk akun Puter yang gratis. Kuota gratis dihitung dari akun Anda sendiri, jadi 1 variasi per klik paling hemat.</p>
+    </section>
+
+    <div class="notice">Hasil adalah gambar buatan AI. Pakai untuk ilustrasi, materi edukasi, atau rancangan visual, dan jangan dipakai sebagai bukti kegiatan yang tidak pernah terjadi. Gunakan foto orang yang sudah memberi izin. Penanda "Dibuat dengan AI" aktif secara bawaan di editor.</div>
+  </div>
+
+  <div class="col sticky">
+    <section class="step" aria-labelledby="h5">
+      <header><span class="stepno">4</span><h2 id="h5">Hasil dan editor</h2></header>
+      <p class="pipe"><span>Foto asli</span><i>→</i><span>Generate AI</span><i>→</i><span>Enhance realistis</span><i>→</i><span>Hasil ultra realistis</span></p>
+      <div class="stage" id="stage">
+        <p class="empty" id="empty">Belum ada gambar. Unggah referensi untuk langsung mencoba editor, atau buat foto dengan AI.</p>
+        <canvas id="cv" hidden></canvas>
+      </div>
+      <div class="thumbs" id="thumbs" style="margin-top:10px"></div>
+      <div class="row" style="margin-top:8px">
+        <button class="btn sm" id="asRef" type="button">Jadikan referensi</button>
+        <button class="btn sm primary" id="dlJpg" type="button">Unduh JPG</button>
+        <button class="btn sm" id="dlPng" type="button">Unduh PNG</button>
+      </div>
+
+      <div style="margin-top:14px">
+        <div class="tabs" role="tablist">
+          <button class="tab" role="tab" aria-selected="true" data-tab="real">Realistis</button>
+          <button class="tab" role="tab" aria-selected="false" data-tab="crop">Potong</button>
+          <button class="tab" role="tab" aria-selected="false" data-tab="adjust">Warna</button>
+          <button class="tab" role="tab" aria-selected="false" data-tab="text">Teks</button>
+          <button class="tab" role="tab" aria-selected="false" data-tab="mark">Penanda</button>
+        </div>
+        <div data-pane="real">
+          <div class="sliders">
+            <label class="f"><span>Ketajaman detail <i class="val" id="vSharp">0</i></span><input type="range" id="edSharp" min="0" max="100" value="0"></label>
+            <label class="f"><span>Butir halus kamera <i class="val" id="vGrain">0</i></span><input type="range" id="edGrain" min="0" max="40" value="0"></label>
+            <label class="f"><span>Vignette <i class="val" id="vVig">0</i></span><input type="range" id="edVig" min="0" max="60" value="0"></label>
+            <label class="f"><span>Sisi panjang hasil
+              <select id="edSize"><option value="1200">1200 px</option><option value="1600" selected>1600 px</option><option value="2400">2400 px (diperbesar halus)</option></select></span></label>
+          </div>
+          <div class="row" style="margin-top:8px"><button class="btn sm primary" id="autoEnh" type="button">Enhance otomatis</button><button class="btn sm" id="resetEnh" type="button">Reset</button></div>
+          <p class="hint">Tahap ini dikerjakan di browser Anda, setara langkah penajam seperti Magnific tetapi lebih sederhana.</p>
+        </div>
+        <div data-pane="crop" hidden>
+          <div class="grid2">
+            <label class="f"><span>Rasio potong</span>
+              <select id="edRatio"><option value="asli">Asli</option><option value="3:2">3:2 landscape</option><option value="4:3">4:3 landscape</option><option value="16:9">16:9 landscape</option></select></label>
+            <label class="f"><span>Zoom <i class="val" id="vZoom">1.0x</i></span><input type="range" id="edZoom" min="100" max="300" value="100"></label>
+            <label class="f"><span>Geser kiri-kanan</span><input type="range" id="edPx" min="-100" max="100" value="0"></label>
+            <label class="f"><span>Geser atas-bawah</span><input type="range" id="edPy" min="-100" max="100" value="0"></label>
+          </div>
+        </div>
+        <div data-pane="adjust" hidden>
+          <div class="sliders">
+            <label class="f"><span>Kecerahan <i class="val" id="vBri">100</i></span><input type="range" id="edBri" min="60" max="140" value="100"></label>
+            <label class="f"><span>Kontras <i class="val" id="vCon">100</i></span><input type="range" id="edCon" min="60" max="150" value="100"></label>
+            <label class="f"><span>Saturasi <i class="val" id="vSat">100</i></span><input type="range" id="edSat" min="0" max="180" value="100"></label>
+            <label class="f"><span>Hangat / dingin <i class="val" id="vWarm">0</i></span><input type="range" id="edWarm" min="-100" max="100" value="0"></label>
+          </div>
+          <div class="row" style="margin-top:8px"><button class="btn sm" id="resetAdj" type="button">Reset warna</button></div>
+        </div>
+        <div data-pane="text" hidden>
+          <label class="f"><span>Keterangan foto</span><input type="text" id="edCap" placeholder="mis. Penyuluhan gizi di Posyandu Melati"></label>
+          <div class="grid2" style="margin-top:8px">
+            <label class="f"><span>Posisi</span><select id="edCapPos"><option value="bottom">Bawah</option><option value="top">Atas</option></select></label>
+            <label class="f"><span>Ukuran <i class="val" id="vCapSize">4.5</i></span><input type="range" id="edCapSize" min="25" max="80" value="45"></label>
+          </div>
+        </div>
+        <div data-pane="mark" hidden>
+          <label class="chk"><input type="checkbox" id="edWm" checked><span>Tampilkan penanda "Dibuat dengan AI" (disarankan)</span></label>
+          <label class="f" style="margin-top:8px"><span>Teks penanda</span><input type="text" id="edWmText" value="Dibuat dengan AI"></label>
+        </div>
+      </div>
+    </section>
+  </div>
+</main>
+
+<script>
+(function(){
+'use strict';
+var $=function(s){return document.querySelector(s)};
+var $$=function(s){return Array.prototype.slice.call(document.querySelectorAll(s))};
+function lsGet(k){try{return localStorage.getItem(k)}catch(e){return null}}
+function lsSet(k,v){try{localStorage.setItem(k,v)}catch(e){}}
+
+/* =====================================================================
+   MESIN AI TERTANAM (tidak tampil di antarmuka)
+   Urutan: kunci pemilik (bila diisi) -> Puter.js (gratis, tanpa kunci, pakai akun Puter pengguna)
+   Hemat dahulu: model termurah dicoba lebih awal, model lain jadi cadangan.
+   ===================================================================== */
+/* ===== TEMPEL KUNCI PRIBADI ANDA DI SINI (boleh lebih dari satu, dipisah koma) =====
+   Contoh: gemini:['AIza...kunci1','AIza...kunci2'],  openai:['sk-...']
+   Kunci dicoba berurutan; bila satu kehabisan kuota, otomatis pindah ke kunci berikutnya,
+   lalu ke Puter. PERINGATAN: isi file ini terbaca siapa pun yang bisa membukanya. */
+/* URL Web App Google Apps Script (berakhiran /exec). Isi setelah deploy GAS. */
+var GAS_URL='https://script.google.com/macros/s/AKfycbx_kAGzyI-0F6CnP5FG8lWPBP7oR0AlCsRRv3JLXIVFAYix3ErVNy1JqMSM6995jMKy/exec';
+var OWNER_KEYS={
+  gemini:[],
+  openai:[]
+};
+var PUTER_MODELS=[
+ {id:'gemini-3.1-flash-lite-image',name:'Nano Banana Lite',opts:{}},
+ {id:'gemini-3.1-flash-image',name:'Nano Banana',opts:{}},
+ {id:'gpt-image-2',name:'GPT Image',opts:{quality:'low'}}
+];
+
+/* ---------- data situasi (teks polos) ---------- */
+var PRESETS=[
+ {id:'p2k2',g:'A',label:'P2K2 (pertemuan kelompok)',scene:'sedang memimpin pertemuan P2K2 di balai desa',action:'Berbincang akrab dengan warga desa.',role:'Pendamping pemerintah yang dipercaya warga.',style:'natural',light:'indoor',angle:'eye',people:'8'},
+ {id:'posyandu',g:'A',label:'Posyandu balita',scene:'sedang menimbang balita di Posyandu, di balai desa yang sederhana',action:'Mengobrol dengan sang ibu dan warga lain.',role:'Kader kesehatan yang ramah dan peduli.',style:'natural',light:'indoor',angle:'eye',people:'3'},
+ {id:'imunisasi',g:'A',label:'Imunisasi',scene:'sedang menyuntikkan imunisasi pada anak di ruang klinik yang bersih',action:'Orang tua memangku anaknya dengan tenang.',role:'Perawat profesional.',style:'natural',light:'indoor',angle:'close',people:'3'},
+ {id:'tensi',g:'A',label:'Cek tekanan darah',scene:'sedang mengukur tekanan darah lansia di meja pemeriksaan puskesmas',action:'Berbicara dengan ramah kepada pasien.',role:'Petugas kesehatan profesional.',style:'natural',light:'indoor',angle:'eye',people:'3'},
+ {id:'senam',g:'A',label:'Senam lansia',scene:'sedang memimpin senam lansia di halaman puskesmas',action:'Para lansia mengikuti gerakan dengan semangat.',role:'Instruktur yang ramah.',style:'natural',light:'morning',angle:'wide',people:'8'},
+ {id:'penyuluhan',g:'A',label:'Penyuluhan kesehatan',scene:'sedang memberi penyuluhan kesehatan kepada warga yang duduk rapi, dengan poster kesehatan di belakangnya',action:'Warga memperhatikan dengan serius.',role:'Penyuluh kesehatan yang dipercaya warga.',style:'natural',light:'indoor',angle:'wide',people:'8'},
+ {id:'kunjungan',g:'A',label:'Kunjungan rumah',scene:'sedang kunjungan rumah di teras rumah yang sederhana',action:'Berbincang dengan keluarga.',role:'Petugas kesehatan yang dipercaya warga.',style:'natural',light:'morning',angle:'eye',people:'3'},
+ {id:'gula',g:'A',label:'Cek gula darah',scene:'sedang memeriksa gula darah pasien di pos skrining',action:'Menjelaskan hasilnya kepada pasien.',role:'Petugas kesehatan profesional.',style:'natural',light:'indoor',angle:'close',people:'3'},
+ {id:'pmt',g:'A',label:'Pemberian makanan tambahan',scene:'sedang membagikan makanan tambahan bergizi untuk ibu dan balita dalam acara warga',action:'Berbincang dengan para ibu.',role:'Relawan kesehatan yang peduli.',style:'natural',light:'morning',angle:'eye',people:'8'},
+ {id:'rapat',g:'B',label:'Rapat koordinasi',scene:'sedang memimpin rapat koordinasi di ruang rapat, di meja yang penuh berkas dan laptop',action:'Berdiskusi dengan rekan kerja.',role:'Pimpinan tim yang profesional.',style:'natural',light:'indoor',angle:'eye',people:'8'},
+ {id:'apel',g:'B',label:'Apel pagi',scene:'sedang memimpin apel pagi pegawai berseragam yang berbaris rapi di halaman depan',action:'',role:'Pimpinan yang disegani.',style:'natural',light:'morning',angle:'wide',people:'8'},
+ {id:'pelatihan',g:'B',label:'Pelatihan staf',scene:'sedang melatih pegawai di depan papan tulis di ruang pelatihan',action:'Peserta mencatat dan bertanya.',role:'Pelatih berpengalaman.',style:'natural',light:'indoor',angle:'eye',people:'8'},
+ {id:'psn',g:'B',label:'Kerja bakti PSN',scene:'sedang ikut kerja bakti membersihkan sarang nyamuk di lingkungan sekitar',action:'Bekerja bersama warga.',role:'Relawan yang aktif.',style:'natural',light:'noon',angle:'wide',people:'8'},
+ {id:'baksos',g:'B',label:'Bakti sosial',scene:'sedang melayani warga di acara bakti sosial kesehatan di bawah tenda',action:'Berbincang dengan warga.',role:'Relawan yang berdedikasi.',style:'natural',light:'noon',angle:'wide',people:'8'},
+ {id:'tokyo',g:'C',label:'Contoh: jalan di Tokyo malam',scene:'sedang berjalan di Tokyo pada malam hari, lampu neon memantul di jalanan yang basah',action:'',role:'',style:'sinematik',light:'night',angle:'eye',people:'1'},
+ {id:'lain',g:'C',label:'Situasi lain (tulis sendiri)',scene:'',action:'',role:'',style:'natural',light:'indoor',angle:'eye',people:'same'}
+];
+var STYLE={
+ natural:['Foto dokumentasi yang asli dan alami.','Kamera profesional.','Tekstur kulit yang nyata.','Gaya foto jurnalistik.','Detail tajam.'],
+ jurnalistik:['Gaya foto jurnalistik, momen spontan.','Kamera profesional.','Tekstur kulit yang nyata.','Detail tajam.'],
+ promosi:['Foto bersih dan rapi, cocok untuk poster kesehatan.','Kamera profesional.','Tekstur kulit yang nyata.','Detail tajam.'],
+ sinematik:['Foto sinematik seperti di film.','Tekstur kulit yang alami.','Kontras lembut, latar belakang sedikit blur.','Detail tajam.']
+};
+var LIGHT={morning:'Cahaya pagi yang lembut dan alami.',noon:'Cahaya siang yang terang dan alami.',afternoon:'Cahaya sore yang hangat keemasan.',indoor:'Pencahayaan dalam ruangan yang terang dan alami.',night:'Cahaya malam dari lampu kota.'};
+var ANGLE={eye:'Sudut kamera setinggi mata.',wide:'Foto lebar yang memperlihatkan seluruh kelompok dan tempatnya.',high:'Sudut kamera sedikit dari atas.',close:'Pengambilan lebih dekat, fokus pada kegiatannya.'};
+var PEOPLE={same:'',1:'Tampilkan satu orang saja.',3:'Tampilkan dua sampai tiga orang.',8:'Tampilkan sekelompok lima sampai delapan orang.'};
+var ROLES=[{v:'face',t:'Wajah / subjek'},{v:'style',t:'Gaya'},{v:'place',t:'Lokasi'}];
+var DEFAULT_ROLES=['face','style','place'];
+var GROUP_BOX={A:'#chipsA',B:'#chipsB',C:'#chipsC'};
+
+var sel='p2k2', promptDirty=false;
+var state={refs:[],results:[],cur:null,busy:false};
+
+/* ---------- tema ---------- */
+$('#themeBtn').addEventListener('click',function(){
+  var r=document.documentElement, dark=r.getAttribute('data-theme')==='dark'||(!r.getAttribute('data-theme')&&matchMedia('(prefers-color-scheme: dark)').matches);
+  r.setAttribute('data-theme',dark?'light':'dark'); render();
+});
+
+/* ---------- chip situasi ---------- */
+function curPreset(){return PRESETS.filter(function(x){return x.id===sel})[0]||PRESETS[0];}
+function applyPreset(p){
+  sel=p.id;
+  $('#style').value=p.style; $('#light').value=p.light; $('#angle').value=p.angle; $('#people').value=p.people;
+  drawChips(); refreshPrompt(true);
+}
+function drawChips(){
+  Object.keys(GROUP_BOX).forEach(function(g){
+    var box=$(GROUP_BOX[g]); box.innerHTML='';
+    PRESETS.filter(function(p){return p.g===g}).forEach(function(p){
+      var b=document.createElement('button'); b.type='button'; b.className='chip'; b.textContent=p.label;
+      b.setAttribute('aria-pressed',String(p.id===sel));
+      b.addEventListener('click',function(){applyPreset(p)});
+      box.appendChild(b);
+    });
+  });
+}
+
+/* ---------- prompt teks polos ---------- */
+function sentence(t){t=t.trim();return /[.!?]$/.test(t)?t:t+'.';}
+function buildPrompt(){
+  var p=curPreset(), detail=$('#detail').value.trim(), L=[];
+  var hasFace=state.refs.some(function(r){return r.role==='face'});
+  L.push(hasFace||!state.refs.length?'Gunakan orang dalam foto yang diunggah sebagai tokoh utama.':'Gunakan foto yang diunggah sebagai acuan.');
+  if(state.refs.length>1){
+    state.refs.forEach(function(r,i){
+      var n=i+1;
+      if(r.role==='face') L.push('Foto acuan '+n+' adalah tokoh utama, wajahnya harus sama.');
+      else if(r.role==='style') L.push('Foto acuan '+n+' hanya untuk gaya (warna, suasana, cahaya). Jangan tiru orang di dalamnya.');
+      else L.push('Foto acuan '+n+' adalah acuan lokasi dan suasana tempat.');
+    });
+  }
+  L.push('');
+  var scene=p.scene;
+  if(p.id==='lain'){scene=detail||'sedang mengikuti kegiatan kesehatan di masyarakat';detail='';}
+  L.push('Tempatkan orang ini '+(scene||'dalam kegiatan masyarakat')+'.');
+  if(p.action) L.push(p.action);
+  if(detail) L.push(sentence(detail));
+  if($('#keep').checked) L.push('Pertahankan wajah asli, jangan berubah.');
+  L.push('');
+  STYLE[$('#style').value].forEach(function(s){L.push(s)});
+  L.push(LIGHT[$('#light').value]);
+  L.push(ANGLE[$('#angle').value]);
+  var pe=PEOPLE[$('#people').value]; if(pe) L.push(pe);
+  if(p.role) L.push(p.role);
+  L.push('Sangat realistis seperti foto asli.');
+  L.push('Komposisi landscape lebar, rasio 3:2.');
+  L.push('Tanpa tulisan, tanpa keterangan, tanpa logo, tanpa watermark.');
+  return L.join('\n');
+}
+function refreshPrompt(force){
+  if(promptDirty&&!force) return;
+  $('#prompt').value=buildPrompt(); promptDirty=false;
+}
+$('#prompt').addEventListener('input',function(){promptDirty=true});
+$('#rebuild').addEventListener('click',function(){refreshPrompt(true)});
+['detail','style','light','angle','people','keep'].forEach(function(id){
+  $('#'+id).addEventListener('input',function(){refreshPrompt()});
+  $('#'+id).addEventListener('change',function(){refreshPrompt()});
+});
+function copyText(t,okMsg){
+  function fallback(){
+    var ta=document.createElement('textarea'); ta.value=t; ta.setAttribute('readonly',''); ta.style.position='fixed'; ta.style.opacity='0';
+    document.body.appendChild(ta); ta.select(); var ok=false; try{ok=document.execCommand('copy');}catch(e){} ta.remove();
+    setStatus(ok?okMsg:'Salin gagal. Blok teks prompt lalu salin manual.',ok?'ok':'err');
+  }
+  if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(t).then(function(){setStatus(okMsg,'ok')},fallback);}
+  else fallback();
+}
+$('#copyPlain').addEventListener('click',function(){copyText($('#prompt').value,'Prompt disalin.')});
+$('#copyMj').addEventListener('click',function(){
+  var t=$('#prompt').value.replace(/\s*\n+\s*/g,' ').trim();
+  copyText(t+' --cref [foto wajah] --sref [foto gaya] --ar 3:2','Prompt format Midjourney disalin.');
+});
+
+/* ---------- referensi ---------- */
+function fileToRef(file){
+  return new Promise(function(res,rej){
+    var url=URL.createObjectURL(file), im=new Image();
+    im.onload=function(){
+      var max=1536,w=im.naturalWidth,h=im.naturalHeight,s=Math.min(1,max/Math.max(w,h));
+      w=Math.round(w*s);h=Math.round(h*s);
+      var c=document.createElement('canvas');c.width=w;c.height=h;c.getContext('2d').drawImage(im,0,0,w,h);
+      var d=c.toDataURL('image/jpeg',0.9); URL.revokeObjectURL(url);
+      res({name:file.name,dataUrl:d,mime:'image/jpeg',b64:d.split(',')[1],role:'face'});
+    };
+    im.onerror=function(){URL.revokeObjectURL(url);rej(new Error('Gambar tidak bisa dibaca: '+file.name))};
+    im.src=url;
+  });
+}
+function assignRoles(){state.refs.forEach(function(r,i){if(!r.roleSet) r.role=DEFAULT_ROLES[i]||'place';});}
+function addFiles(list){
+  var files=Array.prototype.slice.call(list).filter(function(f){return /^image\//.test(f.type)});
+  var room=3-state.refs.length;
+  if(!files.length){setStatus('File yang dipilih bukan gambar.','err');return;}
+  if(room<=0){setStatus('Referensi sudah 3 foto. Hapus satu dulu.','err');return;}
+  Promise.all(files.slice(0,room).map(fileToRef)).then(function(rs){
+    rs.forEach(function(r){state.refs.push(r)});
+    assignRoles(); drawRefs(); refreshPrompt();
+    if(!ed.img) loadEditor(state.refs[0].dataUrl);
+    setStatus('');
+  }).catch(function(e){setStatus(e.message,'err')});
+}
+function drawRefs(){
+  var box=$('#refs'); box.innerHTML='';
+  state.refs.forEach(function(r,i){
+    var card=document.createElement('div'); card.className='refcard';
+    var d=document.createElement('div'); d.className='ref';
+    var im=document.createElement('img'); im.src=r.dataUrl; im.alt='Referensi '+(i+1);
+    var n=document.createElement('b'); n.textContent=String(i+1);
+    var x=document.createElement('button'); x.type='button'; x.textContent='×'; x.setAttribute('aria-label','Hapus referensi '+(i+1));
+    x.addEventListener('click',function(){state.refs.splice(i,1);assignRoles();drawRefs();refreshPrompt();});
+    var u=document.createElement('button'); u.type='button'; u.className='use'; u.textContent='Edit';
+    u.addEventListener('click',function(){loadEditor(r.dataUrl)});
+    d.appendChild(im);d.appendChild(n);d.appendChild(x);d.appendChild(u);
+    var s=document.createElement('select'); s.setAttribute('aria-label','Peran referensi '+(i+1));
+    ROLES.forEach(function(o){var op=document.createElement('option');op.value=o.v;op.textContent=o.t;if(o.v===r.role)op.selected=true;s.appendChild(op);});
+    s.addEventListener('change',function(){r.role=s.value;r.roleSet=true;refreshPrompt();});
+    card.appendChild(d);card.appendChild(s);box.appendChild(card);
+  });
+}
+var drop=$('#drop'), fileIn=$('#file');
+drop.addEventListener('click',function(){fileIn.click()});
+drop.addEventListener('keydown',function(e){if(e.key==='Enter'||e.key===' '){e.preventDefault();fileIn.click();}});
+fileIn.addEventListener('change',function(){addFiles(fileIn.files);fileIn.value='';});
+['dragenter','dragover'].forEach(function(t){drop.addEventListener(t,function(e){e.preventDefault();drop.classList.add('over')})});
+['dragleave','drop'].forEach(function(t){drop.addEventListener(t,function(e){e.preventDefault();drop.classList.remove('over')})});
+drop.addEventListener('drop',function(e){addFiles(e.dataTransfer.files)});
+
+/* ---------- status ---------- */
+function setStatus(msg,kind){var s=$('#status');s.textContent=msg||'';s.className='status'+(kind?' '+kind:'');}
+
+/* ---------- pemanggil mesin ---------- */
+function mkErr(msg,code){var e=new Error(msg);e.code=code;return e;}
+function normErr(err){
+  var code=err&&(err.errorCode||err.code), msg=(err&&(err.message||err.error))||String(err||'');
+  if(code==='insufficient_funds') return mkErr('Kuota gratis akun Puter Anda sedang habis. Coba lagi nanti atau cek saldo di puter.com.',code);
+  if(code==='moderation_flagged') return mkErr('Foto atau prompt ditolak filter keamanan mesin. Ubah prompt atau ganti foto referensi.',code);
+  if(code==='auth_failed'||/sign.?in|auth/i.test(msg)) return mkErr('Masuk akun Puter diperlukan untuk memakai mesin gratis. Klik tombol buat lagi lalu selesaikan jendela masuk.',code||'auth');
+  return mkErr(String(msg).slice(0,240)||'Mesin gagal membuat gambar.',code);
+}
+function blobToDataUrl(b){return new Promise(function(res,rej){var fr=new FileReader();fr.onload=function(){res(fr.result)};fr.onerror=function(){rej(new Error('Gagal membaca gambar hasil.'))};fr.readAsDataURL(b);});}
+function toDataUrl(src){
+  if(/^data:/.test(src)) return Promise.resolve(src);
+  return fetch(src).then(function(r){if(!r.ok)throw new Error('x');return r.blob()}).then(blobToDataUrl).catch(function(){
+    return new Promise(function(res,rej){
+      var im=new Image(); im.crossOrigin='anonymous';
+      im.onload=function(){var c=document.createElement('canvas');c.width=im.naturalWidth;c.height=im.naturalHeight;try{c.getContext('2d').drawImage(im,0,0);res(c.toDataURL('image/png'));}catch(e){rej(new Error('Gambar hasil tidak bisa diolah di editor.'))}};
+      im.onerror=function(){rej(new Error('Gambar hasil gagal dimuat.'))};
+      im.src=src;
+    });
+  });
+}
+function callPuter(o,m){
+  var opts={model:m.id,input_images:o.refs.map(function(r){return r.dataUrl}),ratio:{w:3,h:2}};
+  Object.keys(m.opts).forEach(function(k){opts[k]=m.opts[k]});
+  return puter.ai.txt2img(o.prompt,opts).then(function(img){return toDataUrl(img.src)});
+}
+function apiError(res){
+  return res.text().then(function(t){
+    var m=t; try{var j=JSON.parse(t); m=(j.error&&(j.error.message||j.error))||t;}catch(e){}
+    if(res.status===429) m='Kuota atau batas pemakaian tercapai.';
+    throw mkErr(String(m).slice(0,240),'http_'+res.status);
+  });
+}
+function callGemini(o,key){
+  var parts=[{text:o.prompt}].concat(o.refs.map(function(r){return {inline_data:{mime_type:r.mime,data:r.b64}}}));
+  var body={contents:[{role:'user',parts:parts}],generationConfig:{responseModalities:['TEXT','IMAGE'],imageConfig:{aspectRatio:'3:2'}}};
+  return fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image:generateContent',{
+    method:'POST',headers:{'Content-Type':'application/json','x-goog-api-key':key},body:JSON.stringify(body)
+  }).then(function(res){
+    if(!res.ok) return apiError(res);
+    return res.json().then(function(j){
+      var c=j.candidates&&j.candidates[0], ps=(c&&c.content&&c.content.parts)||[];
+      for(var i=0;i<ps.length;i++){var d=ps[i].inlineData||ps[i].inline_data; if(d&&d.data) return 'data:'+(d.mimeType||d.mime_type||'image/png')+';base64,'+d.data;}
+      throw mkErr('Model tidak mengembalikan gambar.','no_image');
+    });
+  });
+}
+function callOpenAI(o,key){
+  return Promise.all(o.refs.map(function(r){return fetch(r.dataUrl).then(function(x){return x.blob()})})).then(function(blobs){
+    var fd=new FormData(); fd.append('model','gpt-image-1'); fd.append('prompt',o.prompt); fd.append('size','1536x1024'); fd.append('n','1');
+    blobs.forEach(function(b,i){fd.append('image[]',b,'ref'+(i+1)+'.jpg')});
+    return fetch('https://api.openai.com/v1/images/edits',{method:'POST',headers:{'Authorization':'Bearer '+key},body:fd});
+  }).then(function(res){
+    if(!res.ok) return apiError(res);
+    return res.json().then(function(j){var d=j.data&&j.data[0]; if(d&&d.b64_json) return 'data:image/png;base64,'+d.b64_json; throw mkErr('Model tidak mengembalikan gambar.','no_image');});
+  });
+}
+function shrink(dataUrl,max){
+  return new Promise(function(res){
+    var im=new Image();
+    im.onload=function(){
+      var k=Math.min(1,max/Math.max(im.naturalWidth,im.naturalHeight)),c=document.createElement('canvas');
+      c.width=Math.round(im.naturalWidth*k);c.height=Math.round(im.naturalHeight*k);
+      c.getContext('2d').drawImage(im,0,0,c.width,c.height); res(c.toDataURL('image/jpeg',0.85));
+    };
+    im.onerror=function(){res(dataUrl)}; im.src=dataUrl;
+  });
+}
+/* Mesin pribadi: Google Apps Script (GAS_URL). Token tersimpan di Script Properties GAS, bukan di file ini. */
+function callProxy(o){
+  if(!GAS_URL) return Promise.reject(mkErr('Mesin pribadi belum dihubungkan (GAS_URL kosong).','proxy_off'));
+  return Promise.all(o.refs.map(function(r){return shrink(r.dataUrl,1024)})).then(function(imgs){
+    function send(){
+      return fetch(GAS_URL,{
+        method:'POST',
+        /* WAJIB text/plain agar tidak memicu CORS preflight yang ditolak GAS */
+        headers:{'Content-Type':'text/plain;charset=utf-8'},
+        body:JSON.stringify({action:'generate',passcode:lsGet('fpl_pass')||'',data:{prompt:o.prompt,images:imgs}})
+      }).then(function(res){return res.json()});
+    }
+    return send().then(function(j){
+      if(j&&j.code==='unauthorized'){
+        var p=window.prompt('Masukkan kode akses aplikasi:');
+        if(!p) throw mkErr('Kode akses diperlukan untuk mesin pribadi.','proxy_auth');
+        lsSet('fpl_pass',p); return send();
+      }
+      return j;
+    });
+  }).then(function(j){
+    if(j&&j.code==='no_token') throw mkErr('Mesin pribadi belum aktif.','proxy_off');
+    if(!j||!j.success||!j.image) throw mkErr((j&&j.message)||'Mesin pribadi gagal.','proxy_fail');
+    return j.image;
+  });
+}
+function keyList(v){return (Array.isArray(v)?v:[v]).map(function(x){return String(x||'').trim()}).filter(Boolean);}
+function buildChain(){
+  var c=[];
+  c.push({name:'Mesin pribadi',puter:false,run:callProxy});
+  keyList(OWNER_KEYS.gemini).forEach(function(k,i){c.push({name:'Nano Banana (kunci '+(i+1)+')',puter:false,run:function(o){return callGemini(o,k)}})});
+  keyList(OWNER_KEYS.openai).forEach(function(k,i){c.push({name:'GPT Image (kunci '+(i+1)+')',puter:false,run:function(o){return callOpenAI(o,k)}})});
+  if(window.puter&&puter.ai&&typeof puter.ai.txt2img==='function'){
+    PUTER_MODELS.forEach(function(m){c.push({name:m.name,puter:true,run:function(o){return callPuter(o,m)}})});
+  }
+  return c;
+}
+function runChain(o){
+  var chain=buildChain();
+  if(!chain.length) return Promise.reject(mkErr('Mesin AI belum termuat. Periksa koneksi internet lalu muat ulang halaman.','no_engine'));
+  var i=0, lastErr=null, skipPuter=false;
+  function next(){
+    if(i>=chain.length) return Promise.reject(lastErr||mkErr('Semua mesin gagal.','all_failed'));
+    var e=chain[i++];
+    if(skipPuter&&e.puter) return next();
+    var p; try{p=e.run(o);}catch(x){p=Promise.reject(x);}
+    return p.then(function(u){return {url:u,engine:e.name}},function(err){
+      var ne=normErr(err); lastErr=ne;
+      if(ne.code==='moderation_flagged') throw ne;
+      if(ne.code==='insufficient_funds') skipPuter=true;
+      return next();
+    });
+  }
+  return next();
+}
+function ensureLandscape(u){
+  return new Promise(function(res){
+    var im=new Image();
+    im.onload=function(){
+      var w=im.naturalWidth,h=im.naturalHeight;
+      if(w/h>=1.3){res(u);return;}
+      var th=Math.round(w/1.5), c=document.createElement('canvas'); c.width=w; c.height=th;
+      c.getContext('2d').drawImage(im,0,(h-th)/2,w,th,0,0,w,th); res(c.toDataURL('image/png'));
+    };
+    im.onerror=function(){res(u)}; im.src=u;
+  });
+}
+function ensureAuth(){
+  try{
+    if(window.puter&&puter.auth&&typeof puter.auth.isSignedIn==='function'&&!puter.auth.isSignedIn()){
+      return Promise.resolve(puter.auth.signIn()).then(function(){},function(){});
+    }
+  }catch(e){}
+  return Promise.resolve();
+}
+
+/* ---------- buat foto ---------- */
+$('#go').addEventListener('click',function(){
+  if(state.busy) return;
+  var prompt=$('#prompt').value.trim();
+  if(!state.refs.length){setStatus('Unggah minimal satu foto referensi di langkah 1.','err');return;}
+  if(!prompt){setStatus('Prompt masih kosong.','err');return;}
+  var n=parseInt($('#variants').value,10), o={prompt:prompt,refs:state.refs};
+  state.busy=true; $('#go').disabled=true; $('#go').textContent='Sedang membuat…';
+  setStatus('Membuat '+n+' variasi. Biasanya 10 sampai 40 detik.');
+  ensureAuth().then(function(){
+    var jobs=[]; for(var i=0;i<n;i++) jobs.push(runChain(o).then(function(v){return {ok:v}},function(e){return {err:e}}));
+    return Promise.all(jobs);
+  }).then(function(rs){
+    var oks=rs.filter(function(r){return r.ok}).map(function(r){return r.ok});
+    var errs=rs.filter(function(r){return r.err}).map(function(r){return r.err.message});
+    if(!oks.length){setStatus(errs[0]||'Gagal membuat gambar.','err');return;}
+    return Promise.all(oks.map(function(x){return ensureLandscape(x.url)})).then(function(urls){
+      urls.slice().reverse().forEach(function(u){state.results.unshift(u)});
+      if(state.results.length>16) state.results.length=16;
+      loadEditor(urls[urls.length-1]);
+      setStatus(oks.length+' gambar landscape siap (mesin: '+oks[0].engine+')'+(errs.length?'. '+errs.length+' gagal: '+errs[0]:'')+'. Pilih dari daftar di kanan.','ok');
+    });
+  }).catch(function(e){setStatus((e&&e.message)||'Gagal membuat gambar.','err')})
+  .then(function(){state.busy=false;$('#go').disabled=false;$('#go').textContent='Buat foto kegiatan';});
+});
+
+function drawThumbs(){
+  var box=$('#thumbs'); box.innerHTML='';
+  state.results.forEach(function(u,i){
+    var b=document.createElement('button'); b.type='button'; b.setAttribute('aria-label','Hasil '+(i+1));
+    b.setAttribute('aria-current',String(u===state.cur));
+    var im=document.createElement('img'); im.src=u; im.alt='';
+    b.appendChild(im); b.addEventListener('click',function(){loadEditor(u)});
+    box.appendChild(b);
+  });
+}
+$('#asRef').addEventListener('click',function(){
+  if(!state.cur){setStatus('Belum ada gambar untuk dijadikan referensi.','err');return;}
+  if(state.refs.length>=3){setStatus('Referensi sudah 3 foto. Hapus satu dulu.','err');return;}
+  var im=new Image(); im.onload=function(){
+    var max=1536,s=Math.min(1,max/Math.max(im.naturalWidth,im.naturalHeight)),c=document.createElement('canvas');
+    c.width=Math.round(im.naturalWidth*s);c.height=Math.round(im.naturalHeight*s);c.getContext('2d').drawImage(im,0,0,c.width,c.height);
+    var d=c.toDataURL('image/jpeg',0.9);
+    state.refs.push({name:'hasil.jpg',dataUrl:d,mime:'image/jpeg',b64:d.split(',')[1],role:'face'});
+    assignRoles();drawRefs();refreshPrompt();setStatus('Ditambahkan ke referensi.','ok');
+  }; im.src=state.cur;
+});
+
+/* ---------- editor ---------- */
+var ed={img:null,ratio:'asli',zoom:1,px:0,py:0,bri:100,con:100,sat:100,warm:0,sharp:0,grain:0,vig:0,maxEdge:1600,cap:'',capPos:'bottom',capSize:4.5,wm:true,wmText:'Dibuat dengan AI'};
+function loadEditor(url){
+  var im=new Image();
+  im.onload=function(){ed.img=im;state.cur=url;$('#empty').hidden=true;drawThumbs();render();};
+  im.src=url;
+}
+function wrapText(ctx,text,maxW){
+  var words=text.split(/\s+/),lines=[],cur='';
+  words.forEach(function(w){
+    var t=cur?cur+' '+w:w;
+    if(ctx.measureText(t).width>maxW&&cur){lines.push(cur);cur=w;}else cur=t;
+  });
+  if(cur) lines.push(cur); return lines;
+}
+function rng(seed){return function(){seed|=0;seed=seed+0x6D2B79F5|0;var t=Math.imul(seed^seed>>>15,1|seed);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;}}
+/* Safari (iPhone, iPad, Mac) belum mendukung ctx.filter, jadi kecerahan, kontras, dan saturasi dihitung manual per piksel */
+var HAS_FILTER=(function(){try{return typeof document.createElement('canvas').getContext('2d').filter==='string';}catch(e){return false;}})();
+function adjustPixels(ctx,W,H){
+  var img=ctx.getImageData(0,0,W,H), d=img.data, b=ed.bri/100, c=ed.con/100, sa=ed.sat/100, i, r, g, bl, l;
+  for(i=0;i<d.length;i+=4){
+    r=(d[i]*b-128)*c+128; g=(d[i+1]*b-128)*c+128; bl=(d[i+2]*b-128)*c+128;
+    l=0.299*r+0.587*g+0.114*bl;
+    d[i]=l+(r-l)*sa; d[i+1]=l+(g-l)*sa; d[i+2]=l+(bl-l)*sa;
+  }
+  ctx.putImageData(img,0,0);
+}
+function pixelFx(ctx,W,H){
+  var img=ctx.getImageData(0,0,W,H), s=img.data, i,x,y,c;
+  if(ed.sharp>0){
+    var a=ed.sharp/100*1.1, out=new Uint8ClampedArray(s), k=1+4*a, w4=W*4;
+    for(y=1;y<H-1;y++){
+      for(x=1;x<W-1;x++){
+        i=(y*W+x)*4;
+        for(c=0;c<3;c++){
+          var v=s[i+c]*k-a*(s[i-4+c]+s[i+4+c]+s[i-w4+c]+s[i+w4+c]);
+          out[i+c]=v<0?0:v>255?255:v;
+        }
+      }
+    }
+    s=out; img=new ImageData(s,W,H);
+  }
+  if(ed.grain>0){
+    var r=rng(12345), amp=ed.grain*1.6;
+    for(i=0;i<s.length;i+=4){
+      var n=(r()-0.5)*amp;
+      s[i]=Math.max(0,Math.min(255,s[i]+n));
+      s[i+1]=Math.max(0,Math.min(255,s[i+1]+n));
+      s[i+2]=Math.max(0,Math.min(255,s[i+2]+n));
+    }
+  }
+  ctx.putImageData(img,0,0);
+}
+function render(){
+  var cv=$('#cv');
+  if(!ed.img){cv.hidden=true;return;}
+  cv.hidden=false;
+  var iw=ed.img.naturalWidth, ih=ed.img.naturalHeight, tr=iw/ih;
+  if(ed.ratio!=='asli'){var a=ed.ratio.split(':');tr=parseFloat(a[0])/parseFloat(a[1]);}
+  var cw,ch; if(iw/ih>tr){ch=ih;cw=ih*tr;}else{cw=iw;ch=iw/tr;}
+  cw/=ed.zoom; ch/=ed.zoom;
+  var sx=iw/2-cw/2+ed.px*(iw-cw)/2, sy=ih/2-ch/2+ed.py*(ih-ch)/2;
+  var sc=ed.maxEdge/Math.max(cw,ch), W=Math.round(cw*sc), H=Math.round(ch*sc);
+  cv.width=W; cv.height=H;
+  var ctx=cv.getContext('2d');
+  ctx.imageSmoothingEnabled=true; ctx.imageSmoothingQuality='high';
+  if(HAS_FILTER) ctx.filter='brightness('+ed.bri+'%) contrast('+ed.con+'%) saturate('+ed.sat+'%)';
+  ctx.drawImage(ed.img,sx,sy,cw,ch,0,0,W,H);
+  if(HAS_FILTER) ctx.filter='none';
+  else if(ed.bri!==100||ed.con!==100||ed.sat!==100) adjustPixels(ctx,W,H);
+  if(ed.warm!==0){
+    ctx.save(); ctx.globalCompositeOperation='soft-light';
+    ctx.globalAlpha=Math.min(1,Math.abs(ed.warm)/100*0.7);
+    ctx.fillStyle=ed.warm>0?'rgb(255,150,60)':'rgb(60,140,255)'; ctx.fillRect(0,0,W,H); ctx.restore();
+  }
+  if(ed.sharp>0||ed.grain>0) pixelFx(ctx,W,H);
+  if(ed.vig>0){
+    var g=ctx.createRadialGradient(W/2,H/2,Math.min(W,H)*0.35,W/2,H/2,Math.max(W,H)*0.75);
+    g.addColorStop(0,'rgba(0,0,0,0)'); g.addColorStop(1,'rgba(0,0,0,'+(ed.vig/100)+')');
+    ctx.fillStyle=g; ctx.fillRect(0,0,W,H);
+  }
+  var barH=0, bottomBar=false;
+  if(ed.cap.trim()){
+    var fs=Math.round(W*ed.capSize/100*0.55); if(fs<12)fs=12;
+    ctx.font='600 '+fs+'px "IBM Plex Sans",system-ui,sans-serif';
+    var pad=Math.round(fs*0.7), lines=wrapText(ctx,ed.cap.trim(),W-pad*2), lh=Math.round(fs*1.3);
+    barH=lines.length*lh+pad*2;
+    var y0=ed.capPos==='top'?0:H-barH; bottomBar=ed.capPos!=='top';
+    ctx.fillStyle='rgba(0,0,0,0.58)'; ctx.fillRect(0,y0,W,barH);
+    ctx.fillStyle='#fff'; ctx.textBaseline='top';
+    lines.forEach(function(l,i){ctx.fillText(l,pad,y0+pad+i*lh)});
+  }
+  if(ed.wm&&ed.wmText.trim()){
+    var f2=Math.max(11,Math.round(W*0.022));
+    ctx.font='500 '+f2+'px "IBM Plex Mono",ui-monospace,monospace'; ctx.textBaseline='middle';
+    var tw=ctx.measureText(ed.wmText).width, px=Math.round(f2*0.7), ph=Math.round(f2*0.5), bw=tw+px*2, bh=f2+ph*2, m=Math.round(f2*0.7);
+    var by=H-m-bh-(bottomBar?barH:0), bx=W-m-bw;
+    ctx.fillStyle='rgba(0,0,0,0.55)'; ctx.fillRect(bx,by,bw,bh);
+    ctx.fillStyle='#fff'; ctx.fillText(ed.wmText,bx+px,by+bh/2+1);
+  }
+}
+var rafId=0;
+function renderSoon(){if(rafId)return;rafId=requestAnimationFrame(function(){rafId=0;render();});}
+function bindRange(id,key,scale,out,fmt){
+  $('#'+id).addEventListener('input',function(e){
+    ed[key]=parseFloat(e.target.value)*scale; if(out)$('#'+out).textContent=fmt?fmt(ed[key]):String(ed[key]); renderSoon();
+  });
+}
+function setRange(id,key,val,out){ed[key]=val;$('#'+id).value=val;if(out)$('#'+out).textContent=String(val);}
+bindRange('edZoom','zoom',0.01,'vZoom',function(v){return v.toFixed(1)+'x'});
+bindRange('edPx','px',0.01); bindRange('edPy','py',0.01);
+bindRange('edBri','bri',1,'vBri'); bindRange('edCon','con',1,'vCon'); bindRange('edSat','sat',1,'vSat'); bindRange('edWarm','warm',1,'vWarm');
+bindRange('edSharp','sharp',1,'vSharp'); bindRange('edGrain','grain',1,'vGrain'); bindRange('edVig','vig',1,'vVig');
+bindRange('edCapSize','capSize',0.1,'vCapSize',function(v){return v.toFixed(1)});
+$('#edSize').addEventListener('change',function(e){ed.maxEdge=parseInt(e.target.value,10);render();});
+$('#edRatio').addEventListener('change',function(e){ed.ratio=e.target.value;ed.px=0;ed.py=0;$('#edPx').value=0;$('#edPy').value=0;render();});
+$('#edCap').addEventListener('input',function(e){ed.cap=e.target.value;renderSoon();});
+$('#edCapPos').addEventListener('change',function(e){ed.capPos=e.target.value;render();});
+$('#edWm').addEventListener('change',function(e){ed.wm=e.target.checked;render();});
+$('#edWmText').addEventListener('input',function(e){ed.wmText=e.target.value;renderSoon();});
+$('#resetAdj').addEventListener('click',function(){
+  setRange('edBri','bri',100,'vBri');setRange('edCon','con',100,'vCon');setRange('edSat','sat',100,'vSat');setRange('edWarm','warm',0,'vWarm');render();
+});
+$('#autoEnh').addEventListener('click',function(){
+  setRange('edSharp','sharp',40,'vSharp');setRange('edGrain','grain',10,'vGrain');setRange('edVig','vig',14,'vVig');
+  setRange('edCon','con',104,'vCon');setRange('edSat','sat',104,'vSat');render();
+});
+$('#resetEnh').addEventListener('click',function(){
+  setRange('edSharp','sharp',0,'vSharp');setRange('edGrain','grain',0,'vGrain');setRange('edVig','vig',0,'vVig');render();
+});
+$$('.tab').forEach(function(t){
+  t.addEventListener('click',function(){
+    $$('.tab').forEach(function(x){x.setAttribute('aria-selected',String(x===t))});
+    $$('[data-pane]').forEach(function(p){p.hidden=p.getAttribute('data-pane')!==t.getAttribute('data-tab')});
+  });
+});
+function exportImg(type){
+  if(!ed.img){setStatus('Belum ada gambar untuk diunduh.','err');return;}
+  render();
+  $('#cv').toBlob(function(b){
+    if(!b){setStatus('Gagal menyiapkan file unduhan.','err');return;}
+    var a=document.createElement('a'); a.href=URL.createObjectURL(b);
+    a.download='foto-kegiatan-'+Date.now()+(type==='image/png'?'.png':'.jpg');
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(function(){URL.revokeObjectURL(a.href)},3000);
+  },type,0.92);
+}
+$('#dlJpg').addEventListener('click',function(){exportImg('image/jpeg')});
+$('#dlPng').addEventListener('click',function(){exportImg('image/png')});
+
+/* ---------- mulai ---------- */
+drawChips(); applyPreset(curPreset());
+})();
+</script>
+</body>
+</html>
